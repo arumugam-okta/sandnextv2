@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model TargetApp {
+  id        String     @id @default(uuid())
+  slug      String     @unique // "angular-spa", "express-backend"
+  name      String // "Angular Single Page Application"
+  runtime   String // "webcontainer" | "docker"
+  templates Template[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Template {
+  id          String    @id @default(uuid())
+  targetAppId String
+  targetApp   TargetApp @relation(fields: [targetAppId], references: [id], onDelete: Cascade)
+
+  sdkVersion       String // "@okta/okta-angular@6.3.0"
+  authFlow         String // "PKCE", "Authorization Code"
+  identityProvider String @default("Okta")
+
+  // WebContainer FileSystemTree structure
+  files Json
+
+  // Field definitions for the dynamic credential form
+  configSchema Json
+
+  credentials AppCredentials[]
+  sessions    TestSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([targetAppId, sdkVersion, authFlow, identityProvider])
+}
+
+model AppCredentials {
+  id         String   @id @default(uuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  name         String // "Okta Sandbox Org"
+  configValues Json // { "issuer": "...", "clientId": "..." }
+
+  sessions  TestSession[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model TestSession {
+  id         String   @id @default(uuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id])
+
+  credentialsId String?
+  credentials   AppCredentials? @relation(fields: [credentialsId], references: [id])
+
+  fileOverrides Json?
+  status        String   @default("READY")
+  createdAt     DateTime @default(now())
+}
