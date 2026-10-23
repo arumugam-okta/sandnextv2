@@ -1,22 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import type { FileSystemTree } from "@webcontainer/api";
-import { useWebContainer } from "@/hooks/useWebContainer";
+import type { FileSystemTree } from "@/lib/file-tree";
+import { useSandpack } from "@/hooks/useSandpack";
+import type { SandpackTemplate } from "@codesandbox/sandpack-client";
 import { DynamicCredentialForm, type ConfigField } from "@/components/DynamicCredentialForm";
 import { CodeWorkspace } from "@/components/CodeWorkspace";
 import { TerminalView } from "@/components/TerminalView";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleSelect } from "@/components/SimpleSelect";
-import { cn } from "@/lib/utils";
 import { hydrateVirtualFileSystem } from "@/lib/template-hydrator";
-import { buildTree, flattenTree, type FlatFiles } from "@/lib/file-tree";
+import { flattenTree, type FlatFiles } from "@/lib/file-tree";
 import { DEMO_TEMPLATE } from "@/lib/demo-template";
+import { openPreviewTab } from "@/lib/preview-handoff";
+import { toast } from "sonner";
 
 interface LoadedTemplate {
   id: string;
@@ -31,16 +32,27 @@ interface SavedCredentials {
   name: string;
   configValues: Record<string, string>;
 }
-type Tab = "terminal" | "preview" | "code";
+/** Pick the Sandpack bundler environment from the template's package.json */
+function detectTemplate(files: FlatFiles): SandpackTemplate {
+  const pkg = files["package.json"] ? JSON.parse(files["package.json"]) : {};
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  if (deps["@angular/core"]) return "angular-cli";
+  if (deps["react-scripts"]) return deps["typescript"] ? "create-react-app-typescript" : "create-react-app";
+  return "static";
+}
 
 export default function Runner() {
   const { templateId } = useParams<{ templateId: string }>();
-  const { launch, writeFile, stop, logs, serverUrl, status } = useWebContainer();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { launch, update, stop, logs, serverUrl, status } = useSandpack(iframeRef);
 
   const [template, setTemplate] = useState<LoadedTemplate | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedCredentials[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>("terminal");
+  const [showConsole, setShowConsole] = useState(true);
+  const [split, setSplit] = useState(50); // editor width, % of the workspace
+  const [dragging, setDragging] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const [edited, setEdited] = useState<FlatFiles>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState<FlatFiles | null>(null);
@@ -48,16 +60,6 @@ export default function Runner() {
   const [prefill, setPrefill] = useState<Record<string, string>>({});
   const [formKey, setFormKey] = useState(0);
   const [lastValues, setLastValues] = useState<Record<string, string>>({});
-
-  // Client-side navigation keeps the previous (non-isolated) document; reload once to pick up COOP/COEP.
-  useEffect(() => {
-    if (!window.crossOriginIsolated && !sessionStorage.getItem("coi-reload")) {
-      sessionStorage.setItem("coi-reload", "1");
-      window.location.reload();
-    } else if (window.crossOriginIsolated) {
-      sessionStorage.removeItem("coi-reload");
-    }
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +96,7 @@ export default function Runner() {
       setLastValues(values);
       const flat = flattenTree(hydrateVirtualFileSystem(template.files, values));
       setHydrated(flat);
-      setActiveTab("terminal");
+      setShowConsole(true);
       if (templateId !== "demo") {
         // fire-and-forget audit record; never block the run on it
         fetch("/api/sessions", {
@@ -103,14 +105,40 @@ export default function Runner() {
           body: JSON.stringify({ templateId, credentialsId, fileOverrides: Object.keys(edited).length ? edited : null }),
         }).catch(() => {});
       }
-      await launch(buildTree({ ...flat, ...edited }), "npm", ["start"]);
+      await launch({ ...flat, ...edited }, detectTemplate(flat));
     },
     [template, templateId, credentialsId, edited, launch]
   );
 
+  // Recompile the running sandbox shortly after the last edit
   useEffect(() => {
-    if (status === "RUNNING" && serverUrl) setActiveTab("preview");
-  }, [status, serverUrl]);
+    if (status !== "RUNNING" || Object.keys(edited).length === 0) return;
+    const t = setTimeout(() => {
+      try {
+        update({ ...(hydrated ?? {}), ...edited });
+      } catch {
+        /* sandbox was stopped in the meantime */
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [edited, hydrated, status, update]);
+
+  // Draggable divider between editor and preview
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (e: PointerEvent) => {
+      const box = workspaceRef.current?.getBoundingClientRect();
+      if (!box) return;
+      setSplit(Math.min(80, Math.max(20, ((e.clientX - box.left) / box.width) * 100)));
+    };
+    const up = () => setDragging(false);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+  }, [dragging]);
 
   const onEdit = (path: string, contents: string) => {
     setEdited((prev) => {
@@ -121,10 +149,6 @@ export default function Runner() {
       }
       return { ...prev, [path]: contents };
     });
-  };
-
-  const applyLive = async () => {
-    for (const [p, c] of Object.entries(edited)) await writeFile(p, c);
   };
 
   const saveCredentials = async () => {
@@ -153,8 +177,8 @@ export default function Runner() {
   if (!template) return <div className="p-8 text-sm text-muted-foreground">Loading template…</div>;
 
   return (
-    <div className="flex h-screen w-full flex-col lg:flex-row">
-      <div className="flex w-full flex-col gap-4 overflow-auto border-r bg-background p-4 lg:w-1/3">
+    <div className="flex h-screen w-full">
+      <div className="flex w-72 shrink-0 flex-col gap-4 overflow-auto border-r bg-background p-4">
         <div>
           <Link href="/dashboard/templates" className="text-xs text-muted-foreground underline">← Templates</Link>
           <h2 className="text-xl font-bold">SDK Test Harness</h2>
@@ -192,59 +216,92 @@ export default function Runner() {
 
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span>Status: <span className="font-bold">{status}</span></span>
-          {status === "RUNNING" && <Button size="sm" variant="outline" onClick={stop}>Stop</Button>}
+          {status !== "IDLE" && <Button size="sm" variant="outline" onClick={stop}>Stop</Button>}
+          {hydrated && status !== "IDLE" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const merged = { ...hydrated, ...edited };
+                if (!openPreviewTab({ files: merged, template: detectTemplate(merged) })) {
+                  toast.error("The browser blocked the new tab; allow pop-ups for this site.");
+                }
+              }}
+            >
+              Open in new tab ↗
+            </Button>
+          )}
           {templateId !== "demo" && Object.keys(lastValues).length > 0 && (
             <Button size="sm" variant="outline" onClick={saveCredentials}>Save credentials</Button>
           )}
         </div>
       </div>
 
-      <div className="flex min-h-0 w-full flex-col lg:w-2/3">
-        <div className="flex items-center gap-2 border-b bg-muted/40 p-2">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
-            <TabsList>
-              <TabsTrigger value="terminal">Terminal</TabsTrigger>
-              <TabsTrigger value="preview">Preview</TabsTrigger>
-              <TabsTrigger value="code">
-                Code{Object.keys(edited).length > 0 && ` (${Object.keys(edited).length})`}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {serverUrl && (
-            <a
-              href={serverUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ size: "sm", variant: "outline" }), "ml-auto")}
-            >
-              Open preview in new tab ↗
-            </a>
-          )}
-          {activeTab === "code" && status === "RUNNING" && Object.keys(edited).length > 0 && (
-            <Button size="sm" onClick={applyLive}>Apply to running app</Button>
-          )}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={workspaceRef} className="flex min-h-0 flex-1">
+          <div className="flex min-w-0 flex-col" style={{ width: `${split}%` }}>
+            <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-xs">
+              <span className="font-medium">Code</span>
+              {Object.keys(edited).length > 0 && (
+                <Badge variant="secondary">
+                  {Object.keys(edited).length} edited{status === "RUNNING" ? " · auto-applied" : ""}
+                </Badge>
+              )}
+            </div>
+            <div className="min-h-0 flex-1">
+              <CodeWorkspace
+                files={files}
+                original={baseFiles}
+                selected={selected}
+                onSelect={setSelected}
+                onChange={onEdit}
+              />
+            </div>
+          </div>
+
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            className="w-1.5 shrink-0 cursor-col-resize bg-border hover:bg-primary/40"
+          />
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-xs">
+              <span className="font-medium">Preview</span>
+              <span className="truncate text-muted-foreground">{serverUrl ?? ""}</span>
+            </div>
+            <div className="relative min-h-0 flex-1 bg-white">
+              {/* the bundler mounts into this iframe, so it is never unmounted */}
+              <iframe
+                ref={iframeRef}
+                title="preview"
+                className={`h-full w-full border-none bg-white ${dragging ? "pointer-events-none" : ""}`}
+              />
+              {status === "IDLE" && (
+                <div className="absolute inset-0 grid place-items-center bg-muted/30 text-sm text-muted-foreground">
+                  Fill in the form and click “Run Test Instance”
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 bg-black">
-          {/* keep terminal mounted so its buffer survives tab switches */}
-          <div className={activeTab === "terminal" ? "h-full" : "hidden"}>
+        <div className="border-t bg-black">
+          <button
+            onClick={() => setShowConsole((v) => !v)}
+            className="flex w-full items-center justify-between bg-muted/40 px-3 py-1 text-left text-xs"
+          >
+            <span className="font-medium">Console</span>
+            <span>{showConsole ? "▼" : "▲"}</span>
+          </button>
+          {/* kept mounted so the terminal buffer survives collapsing */}
+          <div className={showConsole ? "h-48" : "hidden"}>
             <TerminalView logs={logs} />
           </div>
-          {activeTab === "preview" &&
-            (serverUrl ? (
-              <iframe src={serverUrl} title="preview" className="h-full w-full border-none bg-white" />
-            ) : (
-              <div className="p-4 text-sm text-white">Server not running yet…</div>
-            ))}
-          {activeTab === "code" && (
-            <CodeWorkspace
-              files={files}
-              original={baseFiles}
-              selected={selected}
-              onSelect={setSelected}
-              onChange={onEdit}
-            />
-          )}
         </div>
       </div>
     </div>

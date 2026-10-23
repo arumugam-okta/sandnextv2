@@ -1,0 +1,12 @@
+{
+  "name": "react-spa",
+  "main": "/src/index.js",
+  "dependencies": {
+    "@okta/okta-auth-js": "^6.9.0",
+    "@okta/okta-react": "6.9.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^5.3.4",
+    "react-scripts": "^5.0.0"
+  }
+}

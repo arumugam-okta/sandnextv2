@@ -6,14 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "bundler": "BUNDLER_DIR=${BUNDLER_DIR:-/Users/arumugam/development/codesandbox-client/www} node scripts/serve-bundler.mjs",
+    "bundler:build": "bash scripts/build-bundler.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@codesandbox/sandpack-client": "^2.19.8",
     "@monaco-editor/react": "^4.7.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "@webcontainer/api": "^1.6.4",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "class-variance-authority": "^0.7.1",

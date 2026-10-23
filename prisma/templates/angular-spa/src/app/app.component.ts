@@ -1,15 +1,13 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component } from "@angular/core";
 
 @Component({
-  selector: 'app-root',
-  imports: [RouterOutlet],
+  selector: "app-root",
   template: `
     <div class="shell">
       <div class="card">
         <span class="badge">@okta/okta-angular</span>
         <h1>Okta Angular SDK</h1>
-        <router-outlet />
+        <router-outlet></router-outlet>
       </div>
     </div>
   `,

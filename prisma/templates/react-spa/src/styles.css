@@ -1,0 +1,9 @@
+body { font-family: system-ui, sans-serif; margin: 0; background: #f4f4f5; }
+.shell { display: grid; place-items: center; min-height: 100vh; }
+.card { background: #fff; padding: 2rem; border-radius: 12px; width: min(560px, 92vw); box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+.badge { font-size: 12px; background: #eef; padding: 2px 8px; border-radius: 99px; }
+.btn { padding: .5rem 1rem; border: 0; border-radius: 8px; background: #111; color: #fff; cursor: pointer; }
+.btn.secondary { background: #e4e4e7; color: #111; }
+.row { display: flex; justify-content: space-between; align-items: center; }
+.muted { color: #71717a; } .error { color: #b91c1c; }
+pre { background: #f4f4f5; padding: 1rem; overflow: auto; border-radius: 8px; }

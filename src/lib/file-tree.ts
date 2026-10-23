@@ -1,4 +1,6 @@
-import type { FileSystemTree } from "@webcontainer/api";
+export type FileSystemTree = {
+  [name: string]: { file: { contents: string } } | { directory: FileSystemTree };
+};
 
 export type FlatFiles = Record<string, string>;
 

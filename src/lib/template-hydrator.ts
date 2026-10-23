@@ -1,4 +1,4 @@
-import type { FileSystemTree } from "@webcontainer/api";
+import type { FileSystemTree } from "@/lib/file-tree";
 
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -17,7 +17,7 @@ const filesSchema = z.custom<Record<string, unknown>>(
 export const targetAppInput = z.object({
   slug: z.string().regex(/^[a-z0-9-]+$/, "lowercase letters, digits and dashes only"),
   name: z.string().min(1),
-  runtime: z.enum(["webcontainer", "docker"]).default("webcontainer"),
+  runtime: z.enum(["nodepod", "docker"]).default("nodepod"),
 });
 
 export const templateInput = z.object({

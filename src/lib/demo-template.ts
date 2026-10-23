@@ -1,10 +1,10 @@
-import type { FileSystemTree } from "@webcontainer/api";
+import type { FileSystemTree } from "@/lib/file-tree";
 import type { ConfigField } from "@/components/DynamicCredentialForm";
 
-/** Database-free template for smoke-testing the runner at /runner/demo */
+/** Database-free template for smoke-testing the runner at /runner/demo (Sandpack create-react-app) */
 export const DEMO_TEMPLATE = {
   id: "demo",
-  sdkVersion: "http-server demo",
+  sdkVersion: "create-react-app demo",
   authFlow: "n/a",
   identityProvider: "n/a",
   configSchema: [
@@ -15,15 +15,36 @@ export const DEMO_TEMPLATE = {
     "package.json": {
       file: {
         contents: JSON.stringify(
-          { name: "demo", scripts: { start: "http-server -p 4200 -c-1" }, dependencies: { "http-server": "^14.1.1" } },
+          { main: "/src/index.js", dependencies: { react: "^18.2.0", "react-dom": "^18.2.0", "react-scripts": "^5.0.0" } },
           null,
           2
         ),
       },
     },
-    "index.html": {
-      file: {
-        contents: `<html><body><h1>SDK Active</h1><p>Issuer: {{issuer}}</p><p>Client: {{clientId}}</p></body></html>`,
+    public: {
+      directory: {
+        "index.html": {
+          file: { contents: `<!DOCTYPE html><html><head><title>Demo</title></head><body><div id="root"></div></body></html>` },
+        },
+      },
+    },
+    src: {
+      directory: {
+        "index.js": {
+          file: {
+            contents: `import React from "react";
+import { createRoot } from "react-dom/client";
+
+createRoot(document.getElementById("root")).render(
+  <div style={{ fontFamily: "system-ui", padding: 24 }}>
+    <h1>SDK Active</h1>
+    <p>Issuer: {{issuer}}</p>
+    <p>Client: {{clientId}}</p>
+  </div>
+);
+`,
+          },
+        },
       },
     },
   } as FileSystemTree,

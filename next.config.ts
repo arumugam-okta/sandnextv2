@@ -11,18 +11,6 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  // Required for WebContainer (SharedArrayBuffer) on the runner routes
-  async headers() {
-    return [
-      {
-        source: "/runner/:path*",
-        headers: [
-          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-        ],
-      },
-    ];
-  },
 };
 
 export default nextConfig;

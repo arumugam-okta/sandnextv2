@@ -136,7 +136,7 @@ export default function TemplateEditor() {
           <h1 className="text-2xl font-bold">{isNew ? "New template" : "Edit template"}</h1>
         </div>
         <div className="flex gap-2">
-          {!isNew && <a href={`/runner/${id}`} className={cn(buttonVariants({ variant: "outline" }))}>Open runner</a>}
+          {!isNew && <Link href={`/runner/${id}`} className={cn(buttonVariants({ variant: "outline" }))}>Open runner</Link>}
           <Button onClick={save} disabled={saving || !targetAppId || !sdkVersion || !authFlow}>
             {saving ? "Saving…" : "Save"}
           </Button>

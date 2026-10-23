@@ -57,7 +57,7 @@ export default function TemplatesDashboard() {
     const res = await fetch("/api/target-apps", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug, name, runtime: "webcontainer" }),
+      body: JSON.stringify({ slug, name, runtime: "nodepod" }),
     });
     if (res.ok) {
       toast.success("Target app created");
@@ -87,9 +87,7 @@ export default function TemplatesDashboard() {
           <p className="text-sm text-muted-foreground">Templates run entirely in your browser via WebContainers.</p>
         </div>
         <div className="flex gap-2">
-          {/* plain <a>: /runner needs a full document load to get its COOP/COEP headers */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/runner/demo" className={cn(buttonVariants({ variant: "outline" }))}>Demo runner</a>
+          <Link href="/runner/demo" className={cn(buttonVariants({ variant: "outline" }))}>Demo runner</Link>
           <Link href="/dashboard/templates/new" className={cn(buttonVariants())}>New template</Link>
         </div>
       </header>
@@ -137,7 +135,7 @@ export default function TemplatesDashboard() {
                 <TableCell>{t.authFlow}</TableCell>
                 <TableCell>{t.identityProvider}</TableCell>
                 <TableCell className="space-x-2 text-right">
-                  <a href={`/runner/${t.id}`} className={cn(buttonVariants({ size: "sm" }))}>Run</a>
+                  <Link href={`/runner/${t.id}`} className={cn(buttonVariants({ size: "sm" }))}>Run</Link>
                   <Link href={`/dashboard/templates/${t.id}`} className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>Edit</Link>
                   <Button size="sm" variant="ghost" onClick={() => remove(t.id)}>Delete</Button>
                 </TableCell>
